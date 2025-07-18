@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title data-i18n-key="archivePageTitle">Архив записей - Bots Factory</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root, [data-bs-theme="dark"] { --sidebar-width: 260px; --sidebar-bg: #1a1d20; --body-bg: #212529; --card-bg: #2b3035; --text-color: #f8f9fa; --text-muted-color: #adb5bd; --border-color: #343a40; }
+        [data-bs-theme="light"] { --sidebar-bg: #ffffff; --body-bg: #f8f9fa; --card-bg: #ffffff; --text-color: #212529; --text-muted-color: #6c757d; --border-color: #dee2e6; }
+        body { background-color: var(--body-bg); color: var(--text-color); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; transition: background-color 0.3s ease; }
+        .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-width); background-color: var(--sidebar-bg); padding: 1rem; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); transition: background-color 0.3s ease, border-color 0.3s ease; z-index: 1030;}
+        .sidebar .nav-link { color: var(--text-muted-color); font-size: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; transition: background-color 0.2s ease, color 0.2s ease; text-decoration: none;}
+        [data-bs-theme="dark"] .sidebar .nav-link:hover { background-color: #343a40; color: #fff; } [data-bs-theme="light"] .sidebar .nav-link:hover { background-color: #e9ecef; color: #000; }
+        [data-bs-theme="dark"] .sidebar .nav-link.active { background-color: #343a40; color: #fff; } [data-bs-theme="light"] .sidebar .nav-link.active { background-color: #e9ecef; color: #000; }
+        .sidebar .nav-link .bi { margin-right: 0.75rem; font-size: 1.2rem; vertical-align: middle; width: 24px; text-align: center; }
+        .sidebar-brand { font-size: 1.5rem; color: var(--text-color); text-align: center; margin-bottom: 1.5rem; text-decoration: none; font-weight: 600; }
+        .content { margin-left: var(--sidebar-width); padding: 2rem; }
+        .glass-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 1rem; padding: 1.5rem; }
+        .toast-container { z-index: 1100; }
+    </style>
+</head>
+<body>
+<div class="sidebar">
+    <a href="/" class="sidebar-brand"><i class="bi bi-robot"></i> Bots Factory</a>
+    <ul class="nav nav-pills flex-column mb-auto">
+        <li class="nav-item mb-2"><a href="/" class="nav-link" data-i18n-key="sidebarDashboard"><i class="bi bi-house-door-fill"></i>Главная</a></li>
+        <li class="nav-item mb-2"><a href="/calendar" class="nav-link" data-i18n-key="sidebarCalendar"><i class="bi bi-calendar-week-fill"></i>Календарь</a></li>
+        <li class="nav-item mb-2"><a href="/clients" class="nav-link" data-i18n-key="sidebarClients"><i class="bi bi-people-fill"></i>Клиенты</a></li>
+        <li class="nav-item mb-2"><a href="/broadcast" class="nav-link" data-i18n-key="sidebarBroadcast"><i class="bi bi-send-fill"></i>Рассылки</a></li>
+        <li class="nav-item mb-2"><a href="/archive" class="nav-link active" data-i18n-key="sidebarArchive"><i class="bi bi-archive-fill"></i>Архив записей</a></li>
+    </ul>
+</div>
+<main class="content">
+    <header class="d-flex justify-content-between align-items-center mb-4"><h1 class="display-5 mb-0" data-i18n-key="archivePageTitle">Архив записей</h1></header>
+    <div class="glass-card mb-4">
+        <form id="filter-form" class="row g-3 align-items-end">
+            <div class="col-md-3"><label for="start-date" class="form-label" data-i18n-key="filterFrom">С</label><input type="date" class="form-control" id="start-date"></div>
+            <div class="col-md-3"><label for="end-date" class="form-label" data-i18n-key="filterTo">По</label><input type="date" class="form-control" id="end-date"></div>
+            <div class="col-md-4"><label for="master-filter" class="form-label" data-i18n-key="filterMaster">Мастер</label><select class="form-select" id="master-filter"><option value="" data-i18n-key="filterAllMasters">Все мастера</option></select></div>
+            <div class="col-md-2"><button type="submit" class="btn btn-primary w-100" data-i18n-key="applyButton">Применить</button></div>
+        </form>
+    </div>
+    <div class="glass-card">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead><tr><th data-i18n-key="tableHeaderClient">Клиент</th><th data-i18n-key="tableHeaderService">Услуга</th><th data-i18n-key="tableHeaderMaster">Мастер</th><th data-i18n-key="tableHeaderDate">Дата и время</th><th data-i18n-key="tableHeaderStatus">Статус</th></tr></thead>
+                <tbody id="archive-table-body"></tbody>
+            </table>
+        </div>
+        <div id="pagination-controls" class="d-flex justify-content-between align-items-center mt-3"></div>
+    </div>
+</main>
+<div class="toast-container position-fixed bottom-0 end-0 p-3"><div id="api-toast" class="toast" role="alert"><div class="toast-body rounded"></div></div></div>
+
+<script src="/static/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const token = document.cookie.split('; ').find(row => row.startsWith('botsFactoryToken='))?.split('=')[1];
+    if (!token) { window.location.href = '/login'; return; }
+
+    const apiToastEl = document.getElementById('api-toast');
+    const apiToast = new bootstrap.Toast(apiToastEl);
+    const showToast = (message, type = 'success') => {
+        const toastBody = apiToastEl.querySelector('.toast-body');
+        toastBody.textContent = message;
+        toastBody.className = `toast-body bg-${type} text-white rounded`;
+        apiToast.show();
+    };
+
+    const apiFetch = async (url, options = {}) => {
+        try {
+            const response = await fetch(url, { ...options, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers }});
+            if (response.status === 401) { window.location.href = '/login'; throw new Error("Сессия истекла."); }
+            if (response.status === 204) return null;
+            const responseText = await response.text();
+            if (!response.ok) {
+                try {
+                    const errorJson = JSON.parse(responseText);
+                    throw new Error(errorJson.detail || `Ошибка ${response.status}`);
+                } catch (e) { throw new Error(`Сервер вернул ошибку ${response.status}`); }
+            }
+            if (!responseText) return null;
+            return JSON.parse(responseText);
+        } catch (error) { console.error('API Fetch Error:', error); showToast(`API Ошибка: ${error.message}`, 'danger'); throw error; }
+    };
+    
+    let currentPage = 1;
+    const pageSize = 15;
+    
+    const fetchArchiveData = async (page = 1) => {
+        currentPage = page;
+        const startDate = document.getElementById('start-date').value;
+        const endDate = document.getElementById('end-date').value;
+        const masterId = document.getElementById('master-filter').value;
+        
+        let query = `page=${page}&page_size=${pageSize}`;
+        if (startDate) query += `&start_date=${startDate}`;
+        if (endDate) query += `&end_date=${endDate}`;
+        if (masterId) query += `&master_id=${masterId}`;
+
+        try {
+            const data = await apiFetch(`/api/archive/bookings?${query}`);
+            renderArchiveTable(data.bookings);
+            renderPagination(data.total_count);
+        } catch (error) {}
+    };
+    
+    const renderArchiveTable = (bookings) => {
+        const tableBody = document.getElementById('archive-table-body');
+        tableBody.innerHTML = '';
+        if(!bookings || bookings.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Записи не найдены</td></tr>';
+            return;
+        }
+        bookings.forEach(b => {
+            const clientName = b.client ? `${b.client.first_name} ${b.client.last_name || ''}`.trim() : 'N/A';
+            const title = b.booking_type === 'client' ? b.service.name : b.title;
+            tableBody.insertAdjacentHTML('beforeend', `
+                <tr>
+                    <td>${clientName}</td>
+                    <td>${title}</td>
+                    <td>${b.master.name}</td>
+                    <td>${new Date(b.start_time).toLocaleString()}</td>
+                    <td><span class="badge bg-secondary">${b.status}</span></td>
+                </tr>
+            `);
+        });
+    };
+
+    const renderPagination = (totalCount) => {
+        const paginationDiv = document.getElementById('pagination-controls');
+        const totalPages = Math.ceil(totalCount / pageSize);
+        paginationDiv.innerHTML = `
+            <button class="btn btn-outline-secondary" id="prev-page" ${currentPage === 1 ? 'disabled' : ''}>Назад</button>
+            <span>Страница ${currentPage} из ${totalPages}</span>
+            <button class="btn btn-outline-secondary" id="next-page" ${currentPage >= totalPages ? 'disabled' : ''}>Вперед</button>
+        `;
+        document.getElementById('prev-page')?.addEventListener('click', () => fetchArchiveData(currentPage - 1));
+        document.getElementById('next-page')?.addEventListener('click', () => fetchArchiveData(currentPage + 1));
+    };
+    
+    const loadMastersForFilter = async () => {
+        const masters = await apiFetch('/api/masters');
+        const masterSelect = document.getElementById('master-filter');
+        masters.forEach(m => masterSelect.add(new Option(m.name, m.id)));
+    };
+    
+    document.getElementById('filter-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        fetchArchiveData(1);
+    });
+
+    loadMastersForFilter();
+    fetchArchiveData();
+});
+</script>
+</body>
+</html>

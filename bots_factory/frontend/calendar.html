@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Календарь - Bots Factory</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.14/main.min.css" rel="stylesheet">
+    <style>
+        :root, [data-bs-theme="dark"] { --sidebar-width: 260px; --sidebar-bg: #1a1d20; --body-bg: #212529; --card-bg: #2b3035; --text-color: #f8f9fa; --text-muted-color: #adb5bd; --border-color: #343a40; --accent-blue: #0d6efd;}
+        [data-bs-theme="light"] { --sidebar-bg: #ffffff; --body-bg: #f8f9fa; --card-bg: #ffffff; --text-color: #212529; --text-muted-color: #6c757d; --border-color: #dee2e6; }
+        body { background-color: var(--body-bg); color: var(--text-color); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; transition: background-color 0.3s ease; }
+        .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-width); background-color: var(--sidebar-bg); padding: 1rem; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); transition: background-color 0.3s ease, border-color 0.3s ease; z-index: 1030; }
+        [data-bs-theme="dark"] .sidebar .nav-link:hover, [data-bs-theme="dark"] .sidebar .nav-link.active { background-color: #343a40; color: #fff; }
+        [data-bs-theme="light"] .sidebar .nav-link:hover, [data-bs-theme="light"] .sidebar .nav-link.active { background-color: #e9ecef; color: #000; }
+        .sidebar .nav-link { color: var(--text-muted-color); font-size: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; transition: background-color 0.2s ease, color 0.2s ease; text-decoration: none;}
+        .sidebar .nav-link .bi { margin-right: 0.75rem; font-size: 1.2rem; vertical-align: middle; width: 24px; text-align: center; }
+        .sidebar-brand { font-size: 1.5rem; color: var(--text-color); text-align: center; margin-bottom: 1.5rem; text-decoration: none; font-weight: 600; }
+        .content { margin-left: var(--sidebar-width); padding: 1.5rem; }
+        .main-header { display: flex; justify-content: space-between; align-items-center; padding-bottom: 1.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); }
+        .main-header h1 { font-size: 1.75rem; font-weight: 700; margin: 0; }
+        .glass-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 1rem; padding: 1.5rem; height: calc(100vh - 120px); }
+        .fc { height: 100%; }
+        .fc-event-block { background: repeating-linear-gradient(45deg, rgba(108, 117, 125, 0.7), rgba(108, 117, 125, 0.7) 10px, rgba(128, 138, 148, 0.7) 10px, rgba(128, 138, 148, 0.7) 20px) !important; border-color: #6c757d !important; cursor: pointer; }
+        .toast-container { z-index: 1100; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <a href="/" class="sidebar-brand"><i class="bi bi-robot"></i> Bots Factory</a>
+    <ul class="nav nav-pills flex-column mb-auto">
+        <li class="nav-item mb-2"><a href="/" class="nav-link"><i class="bi bi-house-door-fill"></i>Главная</a></li>
+        <li class="nav-item mb-2"><a href="/calendar" class="nav-link active"><i class="bi bi-calendar-week-fill"></i>Календарь</a></li>
+        <li class="nav-item mb-2"><a href="/clients" class="nav-link"><i class="bi bi-people-fill"></i>Клиенты</a></li>
+        <li class="nav-item mb-2"><a href="/broadcast" class="nav-link"><i class="bi bi-send-fill"></i>Рассылки</a></li>
+        <li class="nav-item mb-2"><a href="/archive" class="nav-link"><i class="bi bi-archive-fill"></i>Архив записей</a></li>
+    </ul>
+</div>
+
+<main class="content">
+    <header class="main-header"><h1>Календарь записей</h1></header>
+    <div class="glass-card"><div id="calendar"></div></div>
+</main>
+
+<!-- Модальное окно для создания/редактирования ЗАПИСИ -->
+<div class="modal fade" id="bookingModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title" id="bookingModalTitle">Создать запись</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <form id="bookingForm">
+                    <input type="hidden" id="bookingId">
+                    <div class="mb-3"><label for="clientSelect" class="form-label">Клиент</label><select class="form-select" id="clientSelect" required></select></div>
+                    <div class="mb-3"><label for="serviceSelect" class="form-label">Услуга</label><select class="form-select" id="serviceSelect" required></select></div>
+                    <div class="mb-3"><label for="masterSelect" class="form-label">Мастер</label><select class="form-select" id="masterSelect" required></select></div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3"><label for="bookingDate" class="form-label">Дата</label><input type="date" class="form-control" id="bookingDate" required></div>
+                        <div class="col-md-6 mb-3"><label for="bookingTime" class="form-label">Время</label><input type="time" class="form-control" id="bookingTime" step="1800" required></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger me-auto" id="deleteBookingBtn" style="display: none;">Удалить</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="submit" class="btn btn-primary" form="bookingForm">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для БЛОКИРОВКИ ВРЕМЕНИ -->
+<div class="modal fade" id="timeBlockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title" id="timeBlockModalTitle">Блокировка времени</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <form id="timeBlockForm">
+                    <input type="hidden" id="timeBlockId">
+                    <div class="mb-3"><label for="blockTitle" class="form-label">Причина блокировки</label><input type="text" class="form-control" id="blockTitle" placeholder="Обед, Личная встреча..." required></div>
+                    <div class="mb-3"><label for="blockMaster" class="form-label">Мастер</label><select class="form-select" id="blockMaster" required></select></div>
+                    <div class="row">
+                        <div class="col-6"><label for="blockStartDate" class="form-label">Дата</label><input type="date" class="form-control" id="blockStartDate" required></div>
+                        <div class="col-6"><label for="blockStartTime" class="form-label">Начало</label><input type="time" class="form-control" id="blockStartTime" step="1800" required></div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-6 offset-6"><label for="blockEndTime" class="form-label">Конец</label><input type="time" class="form-control" id="blockEndTime" step="1800" required></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger me-auto" id="deleteBlockBtn" style="display: none;">Удалить</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="submit" class="btn btn-primary" form="timeBlockForm">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для ВЫБОРА ДЕЙСТВИЯ -->
+<div class="modal fade" id="choiceModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center">
+                <h5 class="mb-4">Что вы хотите сделать?</h5>
+                <button id="choice-new-booking" class="btn btn-primary w-100 mb-2">Создать запись</button>
+                <button id="choice-new-block" class="btn btn-secondary w-100">Блокировать время</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="api-toast" class="toast" role="alert"><div class="toast-body rounded"></div></div>
+</div>
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.14/index.global.min.js'></script>
+<script src="/static/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const token = document.cookie.split('; ').find(row => row.startsWith('botsFactoryToken='))?.split('=')[1];
+    if (!token) { window.location.href = '/login'; return; }
+
+    const apiToastEl = document.getElementById('api-toast');
+    const apiToast = new bootstrap.Toast(apiToastEl);
+    const showToast = (message, type = 'success') => {
+        const toastBody = apiToastEl.querySelector('.toast-body');
+        toastBody.textContent = message;
+        toastBody.className = `toast-body bg-${type} text-white rounded`;
+        apiToast.show();
+    };
+
+    
+     const apiFetch = async (url, options = {}) => {
+        try {
+            const response = await fetch(url, { ...options, headers: { 
+                'Authorization': `Bearer ${token}`, // ВОТ КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ
+                'Content-Type': 'application/json', 
+                ...options.headers 
+            }});
+            if (response.status === 401) { window.location.href = '/login'; throw new Error("Сессия истекла."); }
+            if (response.status === 204) return null;
+            const responseText = await response.text();
+            if (!response.ok) {
+                try {
+                    const errorJson = JSON.parse(responseText);
+                    throw new Error(errorJson.detail || `Ошибка ${response.status}`);
+                } catch (e) { throw new Error(`Сервер вернул ошибку ${response.status}`); }
+            }
+            if (!responseText) return null;
+            return JSON.parse(responseText);
+        } catch (error) { console.error('API Fetch Error:', error); showToast(`API Ошибка: ${error.message}`, 'danger'); throw error; }
+    };
+
+
+    const bookingModal = new bootstrap.Modal(document.getElementById('bookingModal'));
+    const timeBlockModal = new bootstrap.Modal(document.getElementById('timeBlockModal'));
+    const choiceModal = new bootstrap.Modal(document.getElementById('choiceModal'));
+    
+    let currentSelectionInfo = null;
+    let servicesCache = [], mastersCache = [], clientsCache = [];
+
+    const loadInitialData = async () => {
+        if (servicesCache.length === 0) servicesCache = await apiFetch('/api/services');
+        if (mastersCache.length === 0) mastersCache = await apiFetch('/api/masters');
+        if (clientsCache.length === 0) clientsCache = (await apiFetch('/api/clients')).clients;
+    };
+
+    const populateSelect = (selectId, data, defaultOption, nameKey = 'name') => {
+        const select = document.getElementById(selectId);
+        select.innerHTML = `<option value="">${defaultOption}</option>`;
+        data.forEach(item => select.add(new Option(item[nameKey], item.id)));
+    };
+    
+    const calendarEl = document.getElementById('calendar');
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        themeSystem: 'bootstrap5',
+        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+        initialView: 'timeGridWeek', locale: 'ru',
+        editable: true, selectable: true, allDaySlot: false,
+        events: (info, successCallback, failureCallback) => {
+            apiFetch(`/api/bookings?start=${info.start.toISOString().split('T')[0]}&end=${info.end.toISOString().split('T')[0]}`)
+                .then(data => successCallback(data || []))
+                .catch(err => failureCallback(err));
+        },
+        select: (info) => { currentSelectionInfo = info; choiceModal.show(); },
+        eventClick: async (info) => {
+            await loadInitialData();
+            const eventType = info.event.extendedProps.type;
+            const eventId = info.event.id;
+            const bookingDetails = await apiFetch(`/api/bookings/${eventId}`);
+            if (!bookingDetails) { showToast('Не удалось загрузить данные записи', 'danger'); return; }
+
+            if (eventType === 'client') {
+                document.getElementById('bookingForm').reset();
+                document.getElementById('bookingId').value = eventId;
+                document.getElementById('bookingModalTitle').textContent = 'Редактировать запись';
+                populateSelect('clientSelect', clientsCache, 'Выберите клиента', 'first_name');
+                populateSelect('serviceSelect', servicesCache, 'Выберите услугу');
+                populateSelect('masterSelect', mastersCache, 'Выберите мастера');
+                
+                document.getElementById('clientSelect').value = bookingDetails.client_id;
+                document.getElementById('serviceSelect').value = bookingDetails.service_id;
+                document.getElementById('masterSelect').value = bookingDetails.master_id;
+                const startDate = new Date(bookingDetails.start_time);
+                document.getElementById('bookingDate').value = startDate.toISOString().slice(0, 10);
+                document.getElementById('bookingTime').value = startDate.toTimeString().slice(0, 5);
+                document.getElementById('deleteBookingBtn').style.display = 'block';
+                bookingModal.show();
+            } else {
+                document.getElementById('timeBlockForm').reset();
+                document.getElementById('timeBlockId').value = eventId;
+                document.getElementById('timeBlockModalTitle').textContent = 'Редактировать блокировку';
+                populateSelect('blockMaster', mastersCache, 'Выберите мастера');
+                document.getElementById('blockMaster').value = bookingDetails.master_id;
+                document.getElementById('blockTitle').value = bookingDetails.title;
+                const startDate = new Date(bookingDetails.start_time);
+                const endDate = new Date(bookingDetails.end_time);
+                document.getElementById('blockStartDate').value = startDate.toISOString().slice(0, 10);
+                document.getElementById('blockStartTime').value = startDate.toTimeString().slice(0, 5);
+                document.getElementById('blockEndTime').value = endDate.toTimeString().slice(0, 5);
+                document.getElementById('deleteBlockBtn').style.display = 'block';
+                timeBlockModal.show();
+            }
+        },
+        eventDrop: async (info) => {
+            if (!confirm("Вы уверены, что хотите перенести эту запись?")) { info.revert(); return; }
+            const eventType = info.event.extendedProps.type;
+            const payload = {
+                start_time: info.event.start.toISOString(),
+                end_time: info.event.end.toISOString(),
+            };
+            try {
+                const endpoint = eventType === 'client' ? `/api/bookings/${info.event.id}` : `/api/time-blocks/${info.event.id}`;
+                await apiFetch(endpoint, { method: 'PUT', body: JSON.stringify(payload) });
+                showToast('Запись успешно перенесена!');
+            } catch (error) { info.revert(); }
+        }
+    });
+    calendar.render();
+
+    document.getElementById('choice-new-booking').addEventListener('click', async () => {
+        choiceModal.hide();
+        await loadInitialData();
+        document.getElementById('bookingForm').reset();
+        document.getElementById('bookingId').value = '';
+        document.getElementById('bookingModalTitle').textContent = 'Создать запись';
+        populateSelect('clientSelect', clientsCache, 'Выберите клиента', 'first_name');
+        populateSelect('serviceSelect', servicesCache, 'Выберите услугу');
+        populateSelect('masterSelect', mastersCache, 'Выберите мастера');
+        const startDate = currentSelectionInfo.start;
+        document.getElementById('bookingDate').value = startDate.toISOString().slice(0, 10);
+        document.getElementById('bookingTime').value = startDate.toTimeString().slice(0, 5);
+        document.getElementById('deleteBookingBtn').style.display = 'none';
+        bookingModal.show();
+    });
+    document.getElementById('choice-new-block').addEventListener('click', async () => {
+        choiceModal.hide();
+        await loadInitialData();
+        document.getElementById('timeBlockForm').reset();
+        document.getElementById('timeBlockId').value = '';
+        document.getElementById('timeBlockModalTitle').textContent = 'Блокировать время';
+        populateSelect('blockMaster', mastersCache, 'Выберите мастера');
+        const startDate = currentSelectionInfo.start;
+        document.getElementById('blockStartDate').value = startDate.toISOString().slice(0, 10);
+        document.getElementById('blockStartTime').value = startDate.toTimeString().slice(0, 5);
+        document.getElementById('blockEndTime').value = new Date(startDate.getTime() + 60*60000).toTimeString().slice(0, 5);
+        document.getElementById('deleteBlockBtn').style.display = 'none';
+        timeBlockModal.show();
+    });
+
+    document.getElementById('bookingForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const bookingId = document.getElementById('bookingId').value;
+        const date = document.getElementById('bookingDate').value;
+        const time = document.getElementById('bookingTime').value;
+        const payload = {
+            client_id: parseInt(document.getElementById('clientSelect').value),
+            service_id: parseInt(document.getElementById('serviceSelect').value),
+            master_id: parseInt(document.getElementById('masterSelect').value),
+            start_time: new Date(`${date}T${time}:00`).toISOString()
+        };
+        try {
+            if (bookingId) {
+                await apiFetch(`/api/bookings/${bookingId}`, { method: 'PUT', body: JSON.stringify(payload) });
+                showToast('Запись успешно обновлена!');
+            } else {
+                await apiFetch('/api/bookings', { method: 'POST', body: JSON.stringify(payload) });
+                showToast('Запись успешно создана!');
+            }
+            bookingModal.hide();
+            calendar.refetchEvents();
+        } catch(error) {}
+    });
+
+    document.getElementById('timeBlockForm').addEventListener('submit', async(e) => {
+        e.preventDefault();
+        const blockId = document.getElementById('timeBlockId').value;
+        const date = document.getElementById('blockStartDate').value;
+        const startTime = document.getElementById('blockStartTime').value;
+        const endTime = document.getElementById('blockEndTime').value;
+        const payload = {
+            title: document.getElementById('blockTitle').value,
+            master_id: parseInt(document.getElementById('blockMaster').value),
+            start_time: new Date(`${date}T${startTime}:00`).toISOString(),
+            end_time: new Date(`${date}T${endTime}:00`).toISOString(),
+        };
+        try {
+            if (blockId) {
+                await apiFetch(`/api/time-blocks/${blockId}`, { method: 'PUT', body: JSON.stringify(payload) });
+                showToast('Блокировка успешно обновлена!');
+            } else {
+                await apiFetch('/api/time-blocks', { method: 'POST', body: JSON.stringify(payload) });
+                showToast('Время успешно заблокировано!');
+            }
+            timeBlockModal.hide();
+            calendar.refetchEvents();
+        } catch (error) {}
+    });
+
+    document.getElementById('deleteBookingBtn').addEventListener('click', async () => {
+        const bookingId = document.getElementById('bookingId').value;
+        if (bookingId && confirm("Вы точно хотите удалить эту запись?")) {
+            try { await apiFetch(`/api/bookings/${bookingId}`, { method: 'DELETE' }); showToast('Запись удалена'); bookingModal.hide(); calendar.refetchEvents(); } catch (error) {}
+        }
+    });
+
+    document.getElementById('deleteBlockBtn').addEventListener('click', async () => {
+        const blockId = document.getElementById('timeBlockId').value;
+        if (blockId && confirm("Вы точно хотите удалить эту блокировку?")) {
+            try { await apiFetch(`/api/time-blocks/${blockId}`, { method: 'DELETE' }); showToast('Блокировка удалена'); timeBlockModal.hide(); calendar.refetchEvents(); } catch (error) {}
+        }
+    });
+});
+</script>
+</body>
+</html>

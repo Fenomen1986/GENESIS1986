@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title data-i18n-key="broadcastPageTitle">Рассылки - Bots Factory</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root, [data-bs-theme="dark"] { --sidebar-width: 260px; --sidebar-bg: #1a1d20; --body-bg: #212529; --card-bg: #2b3035; --text-color: #f8f9fa; --text-muted-color: #adb5bd; --border-color: #343a40; }
+        [data-bs-theme="light"] { --sidebar-bg: #ffffff; --body-bg: #f8f9fa; --card-bg: #ffffff; --text-color: #212529; --text-muted-color: #6c757d; --border-color: #dee2e6; }
+        body { background-color: var(--body-bg); color: var(--text-color); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; transition: background-color 0.3s ease; }
+        .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-width); background-color: var(--sidebar-bg); padding: 1rem; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); transition: background-color 0.3s ease, border-color 0.3s ease; z-index: 1030;}
+        .sidebar .nav-link { color: var(--text-muted-color); font-size: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; transition: background-color 0.2s ease, color 0.2s ease; text-decoration: none;}
+        [data-bs-theme="dark"] .sidebar .nav-link:hover { background-color: #343a40; color: #fff; } [data-bs-theme="light"] .sidebar .nav-link:hover { background-color: #e9ecef; color: #000; }
+        [data-bs-theme="dark"] .sidebar .nav-link.active { background-color: #343a40; color: #fff; } [data-bs-theme="light"] .sidebar .nav-link.active { background-color: #e9ecef; color: #000; }
+        .sidebar .nav-link .bi { margin-right: 0.75rem; font-size: 1.2rem; vertical-align: middle; width: 24px; text-align: center; }
+        .sidebar-brand { font-size: 1.5rem; color: var(--text-color); text-align: center; margin-bottom: 1.5rem; text-decoration: none; font-weight: 600; }
+        .content { margin-left: var(--sidebar-width); padding: 2rem; }
+        .glass-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 1rem; padding: 1.5rem; }
+        .toast-container { z-index: 1100; }
+    </style>
+</head>
+<body>
+<div class="sidebar">
+    <a href="/" class="sidebar-brand"><i class="bi bi-robot"></i> Bots Factory</a>
+    <ul class="nav nav-pills flex-column mb-auto">
+        <li class="nav-item mb-2"><a href="/" class="nav-link" data-i18n-key="sidebarDashboard"><i class="bi bi-house-door-fill"></i>Главная</a></li>
+        <li class="nav-item mb-2"><a href="/calendar" class="nav-link" data-i18n-key="sidebarCalendar"><i class="bi bi-calendar-week-fill"></i>Календарь</a></li>
+        <li class="nav-item mb-2"><a href="/clients" class="nav-link" data-i18n-key="sidebarClients"><i class="bi bi-people-fill"></i>Клиенты</a></li>
+        <li class="nav-item mb-2"><a href="/broadcast" class="nav-link active" data-i18n-key="sidebarBroadcast"><i class="bi bi-send-fill"></i>Рассылки</a></li>
+        <li class="nav-item mb-2"><a href="/archive" class="nav-link" data-i18n-key="sidebarArchive"><i class="bi bi-archive-fill"></i>Архив записей</a></li>
+    </ul>
+</div>
+<main class="content">
+    <header class="d-flex justify-content-between align-items-center mb-4"><h1 class="display-5 mb-0" data-i18n-key="broadcastPageTitle">Рассылки клиентам</h1></header>
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="glass-card">
+                <h5 data-i18n-key="broadcastCreateTitle">Создать новую рассылку</h5>
+                <form id="broadcast-form">
+                    <div class="mb-3"><label for="broadcast-message" class="form-label" data-i18n-key="broadcastMessageLabel">Текст сообщения</label><textarea class="form-control" id="broadcast-message" rows="8" required></textarea></div>
+                    <button type="submit" class="btn btn-primary w-100" data-i18n-key="broadcastSendButton">Отправить всем клиентам</button>
+                </form>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="glass-card">
+                <h5 data-i18n-key="broadcastHistoryTitle">История рассылок</h5>
+                <div class="table-responsive">
+                    <table class="table"><thead><tr><th data-i18n-key="tableHeaderDate">Дата</th><th data-i18n-key="tableHeaderStatus">Статус</th><th data-i18n-key="tableHeaderSent">Отправлено</th></tr></thead><tbody id="history-table-body"></tbody></table>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+<div class="toast-container position-fixed bottom-0 end-0 p-3"><div id="api-toast" class="toast" role="alert"><div class="toast-body rounded"></div></div></div>
+
+<script src="/static/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const token = document.cookie.split('; ').find(row => row.startsWith('botsFactoryToken='))?.split('=')[1];
+    if (!token) { window.location.href = '/login'; return; }
+
+    const apiToastEl = document.getElementById('api-toast');
+    const apiToast = new bootstrap.Toast(apiToastEl);
+    const showToast = (message, type = 'success') => {
+        const toastBody = apiToastEl.querySelector('.toast-body');
+        toastBody.textContent = message;
+        toastBody.className = `toast-body bg-${type} text-white rounded`;
+        apiToast.show();
+    };
+
+    const apiFetch = async (url, options = {}) => {
+        try {
+            const response = await fetch(url, { ...options, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers }});
+            if (response.status === 401) { window.location.href = '/login'; throw new Error("Сессия истекла."); }
+            if (response.status === 204) return null;
+            const responseText = await response.text();
+            if (!response.ok) {
+                try {
+                    const errorJson = JSON.parse(responseText);
+                    throw new Error(errorJson.detail || `Ошибка ${response.status}`);
+                } catch (e) { throw new Error(`Сервер вернул ошибку ${response.status}`); }
+            }
+            if (!responseText) return null;
+            return JSON.parse(responseText);
+        } catch (error) { console.error('API Fetch Error:', error); showToast(`API Ошибка: ${error.message}`, 'danger'); throw error; }
+    };
+    
+    const historyBody = document.getElementById('history-table-body');
+    const renderHistory = (history) => {
+        historyBody.innerHTML = '';
+        if(!history || history.length === 0) {
+            historyBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Рассылок еще не было</td></tr>';
+            return;
+        }
+        history.forEach(b => {
+            historyBody.insertAdjacentHTML('beforeend', `
+                <tr>
+                    <td>${new Date(b.created_at).toLocaleString()}</td>
+                    <td><span class="badge bg-info">${b.status}</span></td>
+                    <td>${b.sent_count} / ${b.total_recipients}</td>
+                </tr>
+            `);
+        });
+    };
+
+    const fetchHistory = async () => await apiFetch('/api/broadcasts/history').then(renderHistory);
+
+    document.getElementById('broadcast-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const message = document.getElementById('broadcast-message').value;
+        if (!confirm(`Вы уверены, что хотите отправить это сообщение? Действие необратимо.`)) return;
+
+        try {
+            const result = await apiFetch('/api/broadcasts', {
+                method: 'POST',
+                body: JSON.stringify({ message_text: message })
+            });
+            e.target.reset();
+            showToast(`Рассылка создана и поставлена в очередь для ${result.total_recipients} получателей!`);
+            fetchHistory();
+        } catch(error) {}
+    });
+    
+    fetchHistory();
+    setInterval(fetchHistory, 30000);
+});
+</script>
+</body>
+</html>

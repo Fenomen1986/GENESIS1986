@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title data-i18n-key="clientsPageTitle">Клиенты - Bots Factory</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root, [data-bs-theme="dark"] { --sidebar-width: 260px; --sidebar-bg: #1a1d20; --body-bg: #212529; --card-bg: #2b3035; --text-color: #f8f9fa; --text-muted-color: #adb5bd; --border-color: #343a40; }
+        [data-bs-theme="light"] { --sidebar-bg: #ffffff; --body-bg: #f8f9fa; --card-bg: #ffffff; --text-color: #212529; --text-muted-color: #6c757d; --border-color: #dee2e6; }
+        body { background-color: var(--body-bg); color: var(--text-color); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; transition: background-color 0.3s ease; }
+        .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-width); background-color: var(--sidebar-bg); padding: 1rem; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); transition: background-color 0.3s ease, border-color 0.3s ease; z-index: 1030;}
+        .sidebar .nav-link { color: var(--text-muted-color); font-size: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; transition: background-color 0.2s ease, color 0.2s ease; text-decoration: none;}
+        [data-bs-theme="dark"] .sidebar .nav-link:hover { background-color: #343a40; color: #fff; } [data-bs-theme="light"] .sidebar .nav-link:hover { background-color: #e9ecef; color: #000; }
+        [data-bs-theme="dark"] .sidebar .nav-link.active { background-color: #343a40; color: #fff; } [data-bs-theme="light"] .sidebar .nav-link.active { background-color: #e9ecef; color: #000; }
+        .sidebar .nav-link .bi { margin-right: 0.75rem; font-size: 1.2rem; vertical-align: middle; width: 24px; text-align: center; }
+        .sidebar-brand { font-size: 1.5rem; color: var(--text-color); text-align: center; margin-bottom: 1.5rem; text-decoration: none; font-weight: 600; }
+        .content { margin-left: var(--sidebar-width); padding: 2rem; }
+        .client-list-container { height: calc(100vh - 120px); overflow-y: auto; }
+        .client-details-container { height: calc(100vh - 120px); overflow-y: auto; }
+        .list-group-item.active { background-color: var(--bs-primary); border-color: var(--bs-primary); }
+        .toast-container { z-index: 1100; }
+    </style>
+</head>
+<body>
+<div class="sidebar">
+    <a href="/" class="sidebar-brand"><i class="bi bi-robot"></i> Bots Factory</a>
+    <ul class="nav nav-pills flex-column mb-auto">
+        <li class="nav-item mb-2"><a href="/" class="nav-link" data-i18n-key="sidebarDashboard"><i class="bi bi-house-door-fill"></i>Главная</a></li>
+        <li class="nav-item mb-2"><a href="/calendar" class="nav-link" data-i18n-key="sidebarCalendar"><i class="bi bi-calendar-week-fill"></i>Календарь</a></li>
+        <li class="nav-item mb-2"><a href="/clients" class="nav-link active" data-i18n-key="sidebarClients"><i class="bi bi-people-fill"></i>Клиенты</a></li>
+        <li class="nav-item mb-2"><a href="/broadcast" class="nav-link" data-i18n-key="sidebarBroadcast"><i class="bi bi-send-fill"></i>Рассылки</a></li>
+        <li class="nav-item mb-2"><a href="/archive" class="nav-link" data-i18n-key="sidebarArchive"><i class="bi bi-archive-fill"></i>Архив записей</a></li>
+    </ul>
+</div>
+<main class="content">
+    <header class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="display-5 mb-0" data-i18n-key="clientsPageTitle">Клиентская база</h1>
+    </header>
+    <div class="row g-0">
+        <div class="col-md-4 border-end" style="border-color: var(--border-color) !important;">
+            <div class="p-3 border-bottom" style="border-color: var(--border-color) !important;"><input type="search" id="client-search-input" class="form-control" data-i18n-placeholder="searchByName" placeholder="Поиск по имени..."></div>
+            <div class="list-group list-group-flush client-list-container" id="client-list"></div>
+        </div>
+        <div class="col-md-8">
+            <div class="p-3 client-details-container" id="client-details-view" style="display: none;">
+                <form id="client-details-form">
+                    <input type="hidden" id="details-client-id">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div><h2 id="details-client-name"></h2><p class="text-muted mb-0"><i class="bi bi-telegram"></i> <span id="details-client-username"></span></p></div>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-2"></i><span data-i18n-key="saveButton">Сохранить</span></button>
+                    </div>
+                    <ul class="nav nav-tabs" role="tablist"><li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#info-tab-pane" data-i18n-key="tabInfo">Информация</button></li><li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#history-tab-pane" data-i18n-key="tabHistory">История записей</button></li></ul>
+                    <div class="tab-content pt-3">
+                        <div class="tab-pane fade show active" id="info-tab-pane">
+                            <div class="mb-3"><label for="details-phone" class="form-label" data-i18n-key="formPhone">Телефон</label><input type="tel" class="form-control" id="details-phone" placeholder="+992 ..."></div>
+                            <div class="mb-3"><label for="details-tags" class="form-label" data-i18n-key="formTags">Теги (через запятую)</label><input type="text" class="form-control" id="details-tags" placeholder="VIP, постоянный, ..."></div>
+                            <div class="mb-3"><label for="details-notes" class="form-label" data-i18n-key="formNotes">Заметки о клиенте</label><textarea class="form-control" id="details-notes" rows="5"></textarea></div>
+                        </div>
+                        <div class="tab-pane fade" id="history-tab-pane">
+                            <table class="table table-sm table-hover"><thead><tr><th data-i18n-key="tableHeaderDate">Дата</th><th data-i18n-key="tableHeaderService">Услуга</th><th data-i18n-key="tableHeaderMaster">Мастер</th><th data-i18n-key="tableHeaderStatus">Статус</th></tr></thead><tbody id="details-booking-history"></tbody></table>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div id="client-details-placeholder" class="d-flex align-items-center justify-content-center h-100 text-muted" data-i18n-key="selectClientPlaceholder">Выберите клиента из списка</div>
+        </div>
+    </div>
+</main>
+<div class="toast-container position-fixed bottom-0 end-0 p-3"><div id="api-toast" class="toast" role="alert"><div class="toast-body rounded"></div></div></div>
+
+<script src="/static/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const token = document.cookie.split('; ').find(row => row.startsWith('botsFactoryToken='))?.split('=')[1];
+    if (!token) { window.location.href = '/login'; return; }
+
+    const apiToastEl = document.getElementById('api-toast');
+    const apiToast = new bootstrap.Toast(apiToastEl);
+    const showToast = (message, type = 'success') => {
+        const toastBody = apiToastEl.querySelector('.toast-body');
+        toastBody.textContent = message;
+        toastBody.className = `toast-body bg-${type} text-white rounded`;
+        apiToast.show();
+    };
+
+    const apiFetch = async (url, options = {}) => {
+        try {
+            const response = await fetch(url, { ...options, headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers }});
+            if (response.status === 401) { window.location.href = '/login'; throw new Error("Сессия истекла."); }
+            if (response.status === 204) return null;
+            const responseText = await response.text();
+            if (!response.ok) {
+                try {
+                    const errorJson = JSON.parse(responseText);
+                    throw new Error(errorJson.detail || `Ошибка ${response.status}`);
+                } catch (e) { throw new Error(`Сервер вернул ошибку ${response.status}`); }
+            }
+            if (!responseText) return null;
+            return JSON.parse(responseText);
+        } catch (error) { console.error('API Fetch Error:', error); showToast(`API Ошибка: ${error.message}`, 'danger'); throw error; }
+    };
+    
+    const clientList = document.getElementById('client-list');
+    const detailsView = document.getElementById('client-details-view');
+    const detailsPlaceholder = document.getElementById('client-details-placeholder');
+    let activeClientId = null;
+    let searchTimeout;
+
+    const fetchAndRenderClients = async (search = '') => {
+        const data = await apiFetch(`/api/clients?search=${search}`);
+        clientList.innerHTML = '';
+        if (data.clients.length === 0) {
+            clientList.innerHTML = '<div class="p-3 text-muted">Клиенты не найдены</div>';
+            return;
+        }
+        data.clients.forEach(client => {
+            const activeClass = client.id === activeClientId ? 'active' : '';
+            clientList.insertAdjacentHTML('beforeend', `<a href="#" class="list-group-item list-group-item-action ${activeClass}" data-client-id="${client.id}">${client.first_name} ${client.last_name || ''}</a>`);
+        });
+    };
+    
+    const renderClientDetails = (client) => {
+        document.getElementById('details-client-id').value = client.id;
+        document.getElementById('details-client-name').textContent = `${client.first_name} ${client.last_name || ''}`;
+        document.getElementById('details-client-username').textContent = client.username ? `@${client.username}` : 'не указан';
+        document.getElementById('details-phone').value = client.phone_number || '';
+        document.getElementById('details-tags').value = client.tags || '';
+        document.getElementById('details-notes').value = client.notes || '';
+        
+        const historyBody = document.getElementById('details-booking-history');
+        historyBody.innerHTML = '';
+        if(client.bookings.length === 0) {
+            historyBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Записей пока нет</td></tr>';
+        } else {
+            client.bookings.forEach(booking => {
+                const date = new Date(booking.start_time).toLocaleString();
+                const title = booking.booking_type === 'client' ? booking.service.name : booking.title;
+                historyBody.insertAdjacentHTML('beforeend', `<tr><td>${date}</td><td>${title}</td><td>${booking.master.name}</td><td>${booking.status}</td></tr>`);
+            });
+        }
+        
+        detailsPlaceholder.style.display = 'none';
+        detailsView.style.display = 'block';
+    };
+
+    clientList.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const link = e.target.closest('.list-group-item');
+        if (!link) return;
+        
+        activeClientId = parseInt(link.dataset.clientId);
+        document.querySelectorAll('#client-list .list-group-item').forEach(el => el.classList.remove('active'));
+        link.classList.add('active');
+
+        const clientDetails = await apiFetch(`/api/clients/${activeClientId}`);
+        renderClientDetails(clientDetails);
+    });
+
+    document.getElementById('client-search-input').addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            fetchAndRenderClients(e.target.value);
+        }, 300); // Задержка для уменьшения нагрузки на API
+    });
+
+    document.getElementById('client-details-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const clientId = document.getElementById('details-client-id').value;
+        if (!clientId) return;
+
+        const payload = {
+            phone_number: document.getElementById('details-phone').value,
+            tags: document.getElementById('details-tags').value,
+            notes: document.getElementById('details-notes').value,
+        };
+
+        try {
+            await apiFetch(`/api/clients/${clientId}`, { method: 'PUT', body: JSON.stringify(payload) });
+            showToast('Изменения сохранены!');
+        } catch (error) {}
+    });
+
+    fetchAndRenderClients();
+});
+</script>
+</body>
+</html>
