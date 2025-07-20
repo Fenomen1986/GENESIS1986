@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+# bots_factory/app/web/schemas.py
+
+from pydantic import BaseModel, Field
 import datetime, enum
 from typing import List, Optional
 
@@ -32,13 +34,19 @@ class Service(ServiceBase):
 
 class MasterBase(BaseModel):
     name: str
+    is_active: bool = True
+    class Config:
+        from_attributes = True
 
 class MasterCreate(MasterBase):
     pass
 
+class MasterUpdate(MasterBase):
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+
 class Master(MasterBase):
     id: int
-    is_active: bool
     tenant_id: str
     class Config:
         from_attributes = True
@@ -60,10 +68,12 @@ class WorkSchedule(WorkScheduleBase):
 
 class MasterWithSchedule(Master):
     schedules: List[WorkSchedule] = []
+    class Config:
+        from_attributes = True
 
 class BookingBase(BaseModel):
     start_time: datetime.datetime
-    service_id: int
+    service_id: Optional[int] = None
     master_id: int
 
 class BookingCreate(BookingBase):
@@ -72,10 +82,42 @@ class BookingCreate(BookingBase):
     client_last_name: Optional[str] = None
     client_username: Optional[str] = None
 
+class BookingCreateManual(BaseModel):
+    client_id: int
+    service_id: int
+    master_id: int
+    start_time: datetime.datetime
+
+class BookingUpdate(BaseModel):
+    service_id: Optional[int] = None
+    master_id: Optional[int] = None
+    client_id: Optional[int] = None
+    start_time: Optional[datetime.datetime] = None
+    end_time: Optional[datetime.datetime] = None
+    status: Optional[str] = None
+    title: Optional[str] = None
+    booking_type: Optional[str] = None
+
+class ClientForBooking(BaseModel):
+    id: int
+    first_name: str
+    last_name: Optional[str] = None
+    username: Optional[str] = None
+    class Config:
+        from_attributes = True
+
 class Booking(BookingBase):
     id: int
     status: str
     end_time: datetime.datetime
+    tenant_id: str
+    booking_type: str
+    client_id: Optional[int] = None
+    title: Optional[str] = None
+    created_at: datetime.datetime
+    service: Optional[Service] = None
+    master: Optional[Master] = None
+    client: Optional[ClientForBooking] = None
     class Config:
         from_attributes = True
 
@@ -85,37 +127,6 @@ class TimeBlockCreate(BaseModel):
     end_time: datetime.datetime
     master_id: int
 
-class UserBase(BaseModel):
-    username: str
-
-class UserCreate(UserBase):
-    password: str
-    tenant_id: str
-
-class User(UserBase):
-    id: int
-    tenant_id: str
-    class Config:
-        from_attributes = True
-
-class TenantBase(BaseModel):
-    id: str
-    business_name: str
-
-class TenantCreate(TenantBase):
-    bot_token: Optional[str] = None
-    subscription_status: str = 'trial'
-    initial_admin_username: str
-    initial_admin_password: str
-
-class Tenant(TenantBase):
-    subscription_status: str
-    created_at: datetime.datetime
-    expires_at: Optional[datetime.datetime] = None
-    class Config:
-        from_attributes = True
-
-# --- Схемы для Настроек (ОБНОВЛЕННЫЕ) ---
 class TenantSettingsUpdate(BaseModel):
     business_name: str
     bot_token: Optional[str] = ""
@@ -124,32 +135,19 @@ class TenantSettingsUpdate(BaseModel):
 
 class TenantSettings(TenantSettingsUpdate):
     id: str
-    subscription_status: str
-    expires_at: Optional[datetime.datetime] = None
     class Config:
         from_attributes = True
-
-class SuperAdminUser(BaseModel):
-    id: int
-    username: str
-    class Config:
-        from_attributes = True
-
-class SuperAdminTenant(Tenant):
-    users: List[SuperAdminUser] = []
-    class Config:
-        from_attributes = True
-
-class TenantUpdate(BaseModel):
-    business_name: str
-    subscription_status: str
-    expires_at: Optional[datetime.date] = None
 
 class ClientBase(BaseModel):
     id: int
+    telegram_id: str
     first_name: str
     last_name: Optional[str] = None
     username: Optional[str] = None
+    phone_number: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[str] = None
+    created_at: datetime.datetime
     class Config:
         from_attributes = True
         
@@ -158,34 +156,22 @@ class PaginatedClients(BaseModel):
     clients: List[ClientBase]
 
 class ClientUpdate(BaseModel):
-    phone_number: Optional[str] = ""
-    notes: Optional[str] = ""
-    tags: Optional[str] = ""
-
-class ServiceForClientCard(BaseModel):
-    name: str
-    class Config:
-        from_attributes = True
-
-class MasterForClientCard(BaseModel):
-    name: str
-    class Config:
-        from_attributes = True
+    phone_number: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[str] = None
 
 class BookingForClientCard(BaseModel):
     id: int
     start_time: datetime.datetime
     status: str
     title: Optional[str] = None
-    service: Optional[ServiceForClientCard] = None
-    master: MasterForClientCard
+    service: Optional[Service] = None
+    master: Master
+    booking_type: str
     class Config:
         from_attributes = True
 
 class ClientDetails(ClientBase):
-    phone_number: Optional[str] = None
-    notes: Optional[str] = None
-    tags: Optional[str] = None
     bookings: List[BookingForClientCard] = []
 
 class AnalyticsDataPoint(BaseModel):
@@ -211,3 +197,14 @@ class Broadcast(BroadcastCreate):
     sent_count: int
     class Config:
         from_attributes = True
+
+class ClientCreate(BaseModel):
+    first_name: str
+    last_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    username: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[str] = None
+    
+class BroadcastHistory(Broadcast):
+    pass

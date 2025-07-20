@@ -1,161 +1,162 @@
+# bots_factory/app/bot/handlers.py
+
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
-from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
-from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
-import datetime
+from aiogram.filters import CommandStart
+from datetime import datetime, timedelta
 
-# ИЗМЕНЕНИЯ: Абсолютные импорты
-from app.bot.states import Booking
-from app.bot.keyboards import (
-    main_menu_kb, get_services_kb, get_masters_kb, 
-    get_time_slots_kb, confirm_booking_kb,
-    ServiceCallback, MasterCallback, TimeSlotCallback, ConfirmationCallback
-)
-from app.bot.api_client import ApiClient
-
-router = Router()
-API_URL = "http://api:8000" # Укажем и здесь
-
-@router.message(CommandStart())
-async def command_start_handler(message: Message):
-    business_name = message.bot.business_name
-    await message.answer(f"👋 Добро пожаловать в {business_name}!", reply_markup=main_menu_kb)
-
-# ... (остальной код handlers.py без изменений)
-
-from .states import Booking
-from .keyboards import (
-    main_menu_kb, get_services_kb, get_masters_kb, 
-    get_time_slots_kb, confirm_booking_kb, get_calendar_kb,
-    ServiceCallback, MasterCallback, TimeSlotCallback, ConfirmationCallback
-)
-from .api_client import ApiClient
-import datetime
+# Исправленные абсолютные импорты
+from app.bot import keyboards as kb
+from app.bot import api_client
+from app.bot.states import BookingStates
 
 router = Router()
 
-# --- Общие команды ---
 @router.message(CommandStart())
-async def command_start_handler(message: Message, state: FSMContext):
+async def cmd_start(message: Message, state: FSMContext, tenant_id: str):
     await state.clear()
-    business_name = message.bot.business_name
-    await message.answer(f"👋 Добро пожаловать в <b>{business_name}</b>!", reply_markup=main_menu_kb)
-
-@router.message(Command("cancel"))
-@router.message(F.text.casefold() == "отмена")
-async def cancel_handler(message: Message, state: FSMContext):
-    current_state = await state.get_state()
-    if current_state is None:
-        return
-    await state.clear()
-    await message.answer("Действие отменено.", reply_markup=main_menu_kb)
-
-# --- Логика записи ---
-@router.message(F.text == "✍️ Записаться на услугу")
-async def start_booking(message: Message, state: FSMContext):
-    api_client = ApiClient(tenant_id=message.bot.tenant_id)
-    services = await api_client.get_services()
+    services = await api_client.get_services(tenant_id)
     if not services:
-        await message.answer("К сожалению, сейчас нет доступных услуг для записи.")
+        await message.answer("Здравствуйте! К сожалению, сейчас нет доступных услуг. Попробуйте позже.")
         return
-    
-    await state.set_state(Booking.choosing_service)
-    await message.answer("Выберите услугу:", reply_markup=get_services_kb(services))
+    await state.update_data(services=services)
+    await message.answer("Здравствуйте! Выберите услугу:", reply_markup=kb.create_services_keyboard(services))
+    await state.set_state(BookingStates.choosing_service)
 
-@router.callback_query(Booking.choosing_service, ServiceCallback.filter())
-async def process_service_choice(callback: CallbackQuery, callback_data: ServiceCallback, state: FSMContext):
-    await state.update_data(service_id=callback_data.service_id, service_name=callback_data.service_name)
-    await callback.message.edit_text(f"Услуга: <b>{callback_data.service_name}</b>")
-    
-    api_client = ApiClient(tenant_id=callback.message.bot.tenant_id)
-    masters = await api_client.get_masters()
+# Обработка выбора услуги
+@router.callback_query(BookingStates.choosing_service, F.data.startswith("service_"))
+async def process_service_choice(callback: CallbackQuery, state: FSMContext, tenant_id: str):
+    service_id = int(callback.data.split("_")[1])
+    data = await state.get_data()
+    services = data.get('services', [])
+    selected_service = next((s for s in services if s['id'] == service_id), None)
+    if not selected_service:
+        await callback.answer("Ошибка! Услуга не найдена.", show_alert=True)
+        return
+
+    await state.update_data(service_id=service_id, service_name=selected_service['name'])
+    masters = await api_client.get_masters(tenant_id)
     if not masters:
-        await callback.message.answer("К сожалению, сейчас нет доступных мастеров. Попробуйте позже.")
-        await state.clear()
-        return
-
-    await state.set_state(Booking.choosing_master)
-    await callback.message.answer("Теперь выберите мастера:", reply_markup=get_masters_kb(masters))
-    await callback.answer()
-
-@router.callback_query(Booking.choosing_master, MasterCallback.filter())
-async def process_master_choice(callback: CallbackQuery, callback_data: MasterCallback, state: FSMContext):
-    await state.update_data(master_id=callback_data.master_id, master_name=callback_data.master_name)
-    await callback.message.edit_text(f"Мастер: <b>{callback_data.master_name}</b>")
-
-    await state.set_state(Booking.choosing_date)
-    await callback.message.answer("Выберите дату:", reply_markup=await get_calendar_kb())
-    await callback.answer()
-
-@router.callback_query(Booking.choosing_date, SimpleCalendarCallback.filter())
-async def process_date_choice(callback: CallbackQuery, callback_data: SimpleCalendarCallback, state: FSMContext):
-    date = callback_data.get_date()
-    if date < datetime.date.today():
-        await callback.answer("Нельзя выбрать прошедшую дату!", show_alert=True)
+        await callback.message.edit_text("К сожалению, сейчас нет свободных мастеров.")
         return
         
-    date_str = date.strftime("%Y-%m-%d")
-    await state.update_data(date=date_str)
-    await callback.message.edit_text(f"Выбранная дата: <b>{date.strftime('%d.%m.%Y')}</b>")
+    await state.update_data(masters=masters)
+    await callback.message.edit_text("Отлично! Теперь выберите мастера:", reply_markup=kb.create_masters_keyboard(masters))
+    await state.set_state(BookingStates.choosing_master)
+    await callback.answer()
 
-    user_data = await state.get_data()
-    api_client = ApiClient(tenant_id=callback.message.bot.tenant_id)
-    slots = await api_client.get_available_slots(user_data['master_id'], date_str)
-    
-    if not slots:
-        await callback.message.answer("На эту дату свободных слотов нет. Пожалуйста, выберите другую.", reply_markup=await get_calendar_kb())
+# Обработка выбора мастера
+@router.callback_query(BookingStates.choosing_master, F.data.startswith("master_"))
+async def process_master_choice(callback: CallbackQuery, state: FSMContext, tenant_id: str):
+    master_id = int(callback.data.split("_")[1])
+    data = await state.get_data()
+    masters = data.get('masters', [])
+    selected_master = next((m for m in masters if m['id'] == master_id), None)
+    if not selected_master:
+        await callback.answer("Ошибка! Мастер не найден.", show_alert=True)
         return
 
-    await state.set_state(Booking.choosing_time)
-    await callback.message.answer("Выберите удобное время:", reply_markup=get_time_slots_kb(slots))
+    await state.update_data(master_id=master_id, master_name=selected_master['name'])
+    await callback.message.edit_text("Выберите дату:", reply_markup=kb.create_calendar_keyboard())
+    await state.set_state(BookingStates.choosing_date)
     await callback.answer()
 
-@router.callback_query(Booking.choosing_time, TimeSlotCallback.filter())
-async def process_time_choice(callback: CallbackQuery, callback_data: TimeSlotCallback, state: FSMContext):
-    await state.update_data(time=callback_data.time)
-    user_data = await state.get_data()
+# Навигация по календарю
+@router.callback_query(BookingStates.choosing_date, F.data.startswith(("prev-month_", "next-month_")))
+async def process_calendar_navigation(callback: CallbackQuery, state: FSMContext):
+    action, date_str = callback.data.split("_")
+    year, month = map(int, date_str.split("-"))
     
-    date_formatted = datetime.datetime.strptime(user_data['date'], '%Y-%m-%d').strftime('%d.%m.%Y')
-    
-    text = (
-        "Пожалуйста, проверьте и подтвердите вашу запись:\n\n"
-        f"<b>Услуга:</b> {user_data['service_name']}\n"
-        f"<b>Мастер:</b> {user_data['master_name']}\n"
-        f"<b>Дата:</b> {date_formatted}\n"
-        f"<b>Время:</b> {user_data['time']}"
-    )
-    
-    await state.set_state(Booking.confirmation)
-    await callback.message.edit_text(text, reply_markup=confirm_booking_kb)
-    await callback.answer()
-
-@router.callback_query(Booking.confirmation, ConfirmationCallback.filter(F.action == "yes"))
-async def process_confirmation(callback: CallbackQuery, state: FSMContext):
-    user_data = await state.get_data()
-    api_client = ApiClient(tenant_id=callback.message.bot.tenant_id)
-    
-    booking_data = {
-        "service_id": user_data['service_id'],
-        "master_id": user_data['master_id'],
-        "client_telegram_id": callback.from_user.id,
-        "client_first_name": callback.from_user.first_name,
-        "client_last_name": callback.from_user.last_name,
-        "client_username": callback.from_user.username,
-        "start_time": f"{user_data['date']}T{user_data['time']}:00"
-    }
-
-    success = await api_client.create_booking(booking_data)
-    if success:
-        await callback.message.edit_text("✅ <b>Отлично! Вы успешно записаны.</b>")
+    current_date = datetime(year, month, 1)
+    if action == "prev-month_":
+        new_date = current_date - timedelta(days=1)
     else:
-        await callback.message.edit_text("❌ Произошла ошибка при создании записи. Попробуйте позже.")
-        
+        new_date = current_date + timedelta(days=32)
+
+    await callback.message.edit_reply_markup(reply_markup=kb.create_calendar_keyboard(new_date.year, new_date.month))
+    await callback.answer()
+
+# Обработка выбора даты
+@router.callback_query(BookingStates.choosing_date, F.data.startswith("date_"))
+async def process_date_choice(callback: CallbackQuery, state: FSMContext, tenant_id: str):
+    selected_date = callback.data.split("_")[1]
+    await state.update_data(selected_date=selected_date)
+    data = await state.get_data()
+    master_id = data.get('master_id')
+    slots = await api_client.get_available_slots(tenant_id, master_id, selected_date)
+    
+    await callback.message.edit_text(f"Выбрана дата: {selected_date}\nТеперь выберите время:", 
+                                     reply_markup=kb.create_time_slots_keyboard(slots))
+    await state.set_state(BookingStates.choosing_time)
+    await callback.answer()
+
+# Обработка выбора времени
+@router.callback_query(BookingStates.choosing_time, F.data.startswith("time_"))
+async def process_time_choice(callback: CallbackQuery, state: FSMContext):
+    selected_time = callback.data.split("_")[1]
+    await state.update_data(selected_time=selected_time)
+    data = await state.get_data()
+    summary = (f"Пожалуйста, подтвердите вашу запись:\n\n"
+               f"Услуга: {data['service_name']}\n"
+               f"Мастер: {data['master_name']}\n"
+               f"Дата: {data['selected_date']}\n"
+               f"Время: {selected_time}")
+    
+    await callback.message.edit_text(summary, reply_markup=kb.create_confirmation_keyboard())
+    await state.set_state(BookingStates.confirming_booking)
+    await callback.answer()
+
+# Подтверждение записи
+@router.callback_query(BookingStates.confirming_booking, F.data == "confirm_booking")
+async def process_booking_confirmation(callback: CallbackQuery, state: FSMContext, tenant_id: str):
+    data = await state.get_data()
+    user = callback.from_user
+    start_time_str = f"{data['selected_date']}T{data['selected_time']}"
+    
+    booking_payload = {
+        "start_time": start_time_str,
+        "service_id": data['service_id'],
+        "master_id": data['master_id'],
+        "client_telegram_id": user.id,
+        "client_first_name": user.first_name,
+        "client_last_name": user.last_name,
+        "client_username": user.username,
+    }
+    
+    success = await api_client.create_booking(tenant_id, booking_payload)
+    if success:
+        await callback.message.edit_text("✅ Отлично! Вы успешно записаны. Ждем вас!")
+    else:
+        await callback.message.edit_text("❌ Произошла ошибка при создании записи. Попробуйте снова.")
     await state.clear()
     await callback.answer()
 
-@router.callback_query(Booking.confirmation, ConfirmationCallback.filter(F.action == "no"))
-async def process_cancellation(callback: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback.message.edit_text("Запись отменена.", reply_markup=main_menu_kb)
+# Кнопки "Назад" и отмены
+@router.callback_query(F.data.startswith("back_to_"))
+async def process_back_button(callback: CallbackQuery, state: FSMContext, tenant_id: str):
+    action = callback.data.split("_")[-1]
+    if action == "services":
+        await cmd_start(callback.message, state, tenant_id)
+    elif action == "masters":
+        data = await state.get_data()
+        await callback.message.edit_text("Выберите услугу:", reply_markup=kb.create_services_keyboard(data.get('services', [])))
+        await state.set_state(BookingStates.choosing_service)
+    elif action == "date":
+        data = await state.get_data()
+        await callback.message.edit_text("Выберите мастера:", reply_markup=kb.create_masters_keyboard(data.get('masters', [])))
+        await state.set_state(BookingStates.choosing_master)
+    elif action == "time":
+        await callback.message.edit_text("Выберите дату:", reply_markup=kb.create_calendar_keyboard())
+        await state.set_state(BookingStates.choosing_date)
     await callback.answer()
+
+@router.callback_query(F.data == "cancel_booking")
+async def process_cancel_booking(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text("Запись отменена.")
+    await callback.answer()
+
+@router.message()
+async def any_message_handler(message: Message):
+    await message.reply("Пожалуйста, используйте кнопки для навигации или введите /start, чтобы начать заново.")

@@ -1,12 +1,13 @@
-#!/bin/sh
+#!/bin/bash
 
-# Останавливаем выполнение при любой ошибке
-set -e
+# Wait for the database to be ready
+# (you might need a more robust solution for production)
+sleep 5
 
-# Применяем миграции Alembic
-echo "Applying database migrations..."
-alembic upgrade head
+# Apply database migrations
+echo "Applying database migrations... (SKIPPED FOR DIRECT SYNC)"
+# alembic upgrade head # <-- ИЗМЕНЕНО (закомментировано)
 
-# Запускаем основной процесс (команду, переданную в docker-compose, то есть uvicorn)
+# Start Uvicorn server
 echo "Starting Uvicorn server..."
-exec uvicorn app.web.main:app --host 0.0.0.0 --port 8000
+uvicorn app.web.main:app --host 0.0.0.0 --port 8000 --reload

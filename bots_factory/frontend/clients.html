@@ -9,16 +9,15 @@
     <style>
         :root, [data-bs-theme="dark"] { --sidebar-width: 260px; --sidebar-bg: #1a1d20; --body-bg: #212529; --card-bg: #2b3035; --text-color: #f8f9fa; --text-muted-color: #adb5bd; --border-color: #343a40; }
         [data-bs-theme="light"] { --sidebar-bg: #ffffff; --body-bg: #f8f9fa; --card-bg: #ffffff; --text-color: #212529; --text-muted-color: #6c757d; --border-color: #dee2e6; }
-        body { background-color: var(--body-bg); color: var(--text-color); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; transition: background-color 0.3s ease; }
-        .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-width); background-color: var(--sidebar-bg); padding: 1rem; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); transition: background-color 0.3s ease, border-color 0.3s ease; z-index: 1030;}
-        .sidebar .nav-link { color: var(--text-muted-color); font-size: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; transition: background-color 0.2s ease, color 0.2s ease; text-decoration: none;}
-        [data-bs-theme="dark"] .sidebar .nav-link:hover { background-color: #343a40; color: #fff; } [data-bs-theme="light"] .sidebar .nav-link:hover { background-color: #e9ecef; color: #000; }
-        [data-bs-theme="dark"] .sidebar .nav-link.active { background-color: #343a40; color: #fff; } [data-bs-theme="light"] .sidebar .nav-link.active { background-color: #e9ecef; color: #000; }
-        .sidebar .nav-link .bi { margin-right: 0.75rem; font-size: 1.2rem; vertical-align: middle; width: 24px; text-align: center; }
+        body { background-color: var(--body-bg); color: var(--text-color); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-width); background-color: var(--sidebar-bg); padding: 1rem; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); z-index: 1030;}
+        .sidebar .nav-link { color: var(--text-muted-color); font-size: 1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; text-decoration: none;}
+        [data-bs-theme="dark"] .sidebar .nav-link:hover, [data-bs-theme="dark"] .sidebar .nav-link.active { background-color: #343a40; color: #fff; }
+        [data-bs-theme="light"] .sidebar .nav-link:hover, [data-bs-theme="light"] .sidebar .nav-link.active { background-color: #e9ecef; color: #000; }
+        .sidebar .nav-link .bi { margin-right: 0.75rem; font-size: 1.2rem; vertical-align: middle; }
         .sidebar-brand { font-size: 1.5rem; color: var(--text-color); text-align: center; margin-bottom: 1.5rem; text-decoration: none; font-weight: 600; }
         .content { margin-left: var(--sidebar-width); padding: 2rem; }
-        .client-list-container { height: calc(100vh - 120px); overflow-y: auto; }
-        .client-details-container { height: calc(100vh - 120px); overflow-y: auto; }
+        .client-list-container, .client-details-container { height: calc(100vh - 120px); overflow-y: auto; }
         .list-group-item.active { background-color: var(--bs-primary); border-color: var(--bs-primary); }
         .toast-container { z-index: 1100; }
     </style>
@@ -37,10 +36,11 @@
 <main class="content">
     <header class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="display-5 mb-0" data-i18n-key="clientsPageTitle">Клиентская база</h1>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addClientModal"><i class="bi bi-plus-circle me-2"></i>Добавить клиента</button>
     </header>
     <div class="row g-0">
         <div class="col-md-4 border-end" style="border-color: var(--border-color) !important;">
-            <div class="p-3 border-bottom" style="border-color: var(--border-color) !important;"><input type="search" id="client-search-input" class="form-control" data-i18n-placeholder="searchByName" placeholder="Поиск по имени..."></div>
+            <div class="p-3 border-bottom" style="border-color: var(--border-color) !important;"><input type="search" id="client-search-input" class="form-control" data-i18n-placeholder="searchByName" placeholder="Поиск по имени, телефону..."></div>
             <div class="list-group list-group-flush client-list-container" id="client-list"></div>
         </div>
         <div class="col-md-8">
@@ -59,7 +59,9 @@
                             <div class="mb-3"><label for="details-notes" class="form-label" data-i18n-key="formNotes">Заметки о клиенте</label><textarea class="form-control" id="details-notes" rows="5"></textarea></div>
                         </div>
                         <div class="tab-pane fade" id="history-tab-pane">
-                            <table class="table table-sm table-hover"><thead><tr><th data-i18n-key="tableHeaderDate">Дата</th><th data-i18n-key="tableHeaderService">Услуга</th><th data-i18n-key="tableHeaderMaster">Мастер</th><th data-i18n-key="tableHeaderStatus">Статус</th></tr></thead><tbody id="details-booking-history"></tbody></table>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover"><thead><tr><th data-i18n-key="tableHeaderDate">Дата</th><th data-i18n-key="tableHeaderService">Услуга/Событие</th><th data-i18n-key="tableHeaderMaster">Мастер</th><th data-i18n-key="tableHeaderStatus">Статус</th></tr></thead><tbody id="details-booking-history"></tbody></table>
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -69,6 +71,30 @@
     </div>
 </main>
 <div class="toast-container position-fixed bottom-0 end-0 p-3"><div id="api-toast" class="toast" role="alert"><div class="toast-body rounded"></div></div></div>
+
+<div class="modal fade" id="addClientModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Новый клиент</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="add-client-form">
+                    <div class="mb-3"><label for="new-client-firstname" class="form-label">Имя*</label><input type="text" class="form-control" id="new-client-firstname" required></div>
+                    <div class="mb-3"><label for="new-client-lastname" class="form-label">Фамилия</label><input type="text" class="form-control" id="new-client-lastname"></div>
+                    <div class="mb-3"><label for="new-client-phone" class="form-label">Телефон</label><input type="tel" class="form-control" id="new-client-phone"></div>
+                    <div class="mb-3"><label for="new-client-username" class="form-label">Username Telegram (без @)</label><input type="text" class="form-control" id="new-client-username"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="submit" class="btn btn-primary" form="add-client-form">Создать клиента</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 <script src="/static/js/bootstrap.bundle.min.js"></script>
 <script>
@@ -92,33 +118,33 @@ document.addEventListener('DOMContentLoaded', function() {
             if (response.status === 204) return null;
             const responseText = await response.text();
             if (!response.ok) {
-                try {
-                    const errorJson = JSON.parse(responseText);
-                    throw new Error(errorJson.detail || `Ошибка ${response.status}`);
-                } catch (e) { throw new Error(`Сервер вернул ошибку ${response.status}`); }
+                const errorJson = JSON.parse(responseText);
+                throw new Error(errorJson.detail || `Ошибка ${response.status}`);
             }
-            if (!responseText) return null;
-            return JSON.parse(responseText);
-        } catch (error) { console.error('API Fetch Error:', error); showToast(`API Ошибка: ${error.message}`, 'danger'); throw error; }
+            return responseText ? JSON.parse(responseText) : null;
+        } catch (error) { showToast(`API Ошибка: ${error.message}`, 'danger'); throw error; }
     };
     
     const clientList = document.getElementById('client-list');
     const detailsView = document.getElementById('client-details-view');
     const detailsPlaceholder = document.getElementById('client-details-placeholder');
+    const addClientModal = new bootstrap.Modal(document.getElementById('addClientModal'));
     let activeClientId = null;
     let searchTimeout;
 
     const fetchAndRenderClients = async (search = '') => {
-        const data = await apiFetch(`/api/clients?search=${search}`);
-        clientList.innerHTML = '';
-        if (data.clients.length === 0) {
-            clientList.innerHTML = '<div class="p-3 text-muted">Клиенты не найдены</div>';
-            return;
-        }
-        data.clients.forEach(client => {
-            const activeClass = client.id === activeClientId ? 'active' : '';
-            clientList.insertAdjacentHTML('beforeend', `<a href="#" class="list-group-item list-group-item-action ${activeClass}" data-client-id="${client.id}">${client.first_name} ${client.last_name || ''}</a>`);
-        });
+        try {
+            const data = await apiFetch(`/api/clients?search=${encodeURIComponent(search)}&page_size=100`);
+            clientList.innerHTML = '';
+            if (data.clients.length === 0) {
+                clientList.innerHTML = '<div class="p-3 text-muted">Клиенты не найдены</div>';
+                return;
+            }
+            data.clients.forEach(client => {
+                const activeClass = client.id === activeClientId ? 'active' : '';
+                clientList.insertAdjacentHTML('beforeend', `<a href="#" class="list-group-item list-group-item-action ${activeClass}" data-client-id="${client.id}">${client.first_name} ${client.last_name || ''}</a>`);
+            });
+        } catch (error) { console.error("Failed to fetch clients", error); }
     };
     
     const renderClientDetails = (client) => {
@@ -135,8 +161,8 @@ document.addEventListener('DOMContentLoaded', function() {
             historyBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Записей пока нет</td></tr>';
         } else {
             client.bookings.forEach(booking => {
-                const date = new Date(booking.start_time).toLocaleString();
-                const title = booking.booking_type === 'client' ? booking.service.name : booking.title;
+                const date = new Date(booking.start_time).toLocaleString('ru', {dateStyle: 'short', timeStyle: 'short'});
+                const title = booking.booking_type === 'client' ? (booking.service?.name || 'Удаленная услуга') : booking.title;
                 historyBody.insertAdjacentHTML('beforeend', `<tr><td>${date}</td><td>${title}</td><td>${booking.master.name}</td><td>${booking.status}</td></tr>`);
             });
         }
@@ -154,15 +180,17 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('#client-list .list-group-item').forEach(el => el.classList.remove('active'));
         link.classList.add('active');
 
-        const clientDetails = await apiFetch(`/api/clients/${activeClientId}`);
-        renderClientDetails(clientDetails);
+        try {
+            const clientDetails = await apiFetch(`/api/clients/${activeClientId}`);
+            renderClientDetails(clientDetails);
+        } catch (error) { console.error("Failed to fetch client details", error); }
     });
 
     document.getElementById('client-search-input').addEventListener('input', (e) => {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
             fetchAndRenderClients(e.target.value);
-        }, 300); // Задержка для уменьшения нагрузки на API
+        }, 300);
     });
 
     document.getElementById('client-details-form').addEventListener('submit', async (e) => {
@@ -181,6 +209,29 @@ document.addEventListener('DOMContentLoaded', function() {
             showToast('Изменения сохранены!');
         } catch (error) {}
     });
+    
+    document.getElementById('add-client-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            first_name: document.getElementById('new-client-firstname').value,
+            last_name: document.getElementById('new-client-lastname').value || null,
+            phone_number: document.getElementById('new-client-phone').value || null,
+            username: document.getElementById('new-client-username').value || null,
+        };
+        try {
+            const newClient = await apiFetch('/api/clients', { method: 'POST', body: JSON.stringify(payload) });
+            showToast(`Клиент "${newClient.first_name}" успешно создан!`);
+            addClientModal.hide();
+            e.target.reset();
+            await fetchAndRenderClients(); // Обновляем список
+            // Автоматически выбираем нового клиента
+            const newClientLink = clientList.querySelector(`[data-client-id="${newClient.id}"]`);
+            if (newClientLink) {
+                newClientLink.click();
+            }
+        } catch (error) {}
+    });
+
 
     fetchAndRenderClients();
 });

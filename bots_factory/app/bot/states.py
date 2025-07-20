@@ -1,8 +1,10 @@
-from aiogram.fsm.state import StatesGroup, State
+# bots_factory/app/bot/states.py
 
-class Booking(StatesGroup):
+from aiogram.fsm.state import State, StatesGroup
+
+class BookingStates(StatesGroup):
     choosing_service = State()
     choosing_master = State()
     choosing_date = State()
     choosing_time = State()
-    confirmation = State()
+    confirming_booking = State()
